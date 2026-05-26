@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>CubiX</title>
+    <title>CubiX | Магазин аксессуаров + золотые блоки</title>
     <style>
         * {
             user-select: none;
@@ -89,6 +89,25 @@
             gap: 6px;
         }
 
+        .coins-badge {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(12px);
+            padding: 4px 16px;
+            border-radius: 100px;
+            border-left: 4px solid #ffcc44;
+            font-weight: bold;
+            color: #ffdd77;
+            font-size: 0.9rem;
+        }
+        .coins-badge span {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: #ffcc44;
+        }
+
         .xp-bar {
             position: absolute;
             bottom: 12px;
@@ -136,11 +155,13 @@
             backdrop-filter: blur(12px);
             border-radius: 40px;
             padding: 20px 24px;
-            min-width: 220px;
+            min-width: 260px;
             border: 1px solid #ffb347;
             display: flex;
             flex-direction: column;
             gap: 15px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
         .game-title {
             text-align: center;
@@ -173,14 +194,13 @@
             cursor: pointer;
             color: #ffd8a5;
             transition: 0.1s;
-            font-family: inherit;
         }
         .diff-btn.active {
             background: #f5a623;
             color: #1e1a0c;
             box-shadow: 0 0 10px #ffaa33;
         }
-        .newgame-btn {
+        .newgame-btn, .shop-btn {
             background: linear-gradient(95deg, #3a8c5a, #236b42);
             border: none;
             font-family: inherit;
@@ -206,9 +226,53 @@
             box-shadow: 0 3px 0 #2a1a3a;
             color: #ffddbb;
         }
-        .newgame-btn:active, .music-btn:active {
-            transform: translateY(2px);
-            box-shadow: 0 1px 0 #1a452c;
+        .shop-section {
+            background: #0a111eaa;
+            border-radius: 32px;
+            padding: 12px;
+            margin-top: 5px;
+        }
+        .shop-title {
+            color: #ffdd99;
+            font-size: 0.8rem;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .accessory-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1f2a3eaa;
+            margin: 5px 0;
+            padding: 6px 10px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+        }
+        .accessory-name {
+            color: #ffefcf;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .accessory-price {
+            color: #ffcc44;
+            font-weight: bold;
+        }
+        .buy-btn, .equip-btn {
+            background: #ffaa33;
+            border: none;
+            border-radius: 40px;
+            padding: 2px 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.65rem;
+        }
+        .equip-btn {
+            background: #33aa66;
+            color: white;
+        }
+        .equip-btn.active {
+            background: #ff6644;
         }
         .tip {
             font-size: 0.65rem;
@@ -216,7 +280,6 @@
             color: #bbddff;
             margin-top: 12px;
         }
-        
         .auth-panel {
             background: #0e1a28cc;
             backdrop-filter: blur(8px);
@@ -279,6 +342,9 @@
             font-size: 0.7rem;
             text-align: center;
         }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
     </style>
 </head>
 <body>
@@ -289,6 +355,9 @@
             <div class="score-badge">
                 <span>★ SCORE ★</span>
                 <span id="scoreValue">0</span>
+            </div>
+            <div class="coins-badge">
+                🪙 <span id="coinsValue">0</span>
             </div>
             <div class="lives-badge" id="livesDisplay">❤️❤️❤️❤️</div>
             <div class="xp-bar">
@@ -325,39 +394,60 @@
             </div>
         </div>
         
-        <div class="saved-badge" id="saveIndicator">💾 Прогресс сохраняется</div>
+        <!-- МАГАЗИН АКСЕССУАРОВ -->
+        <div class="shop-section">
+            <div class="shop-title">🛍️ МАГАЗИН АКСЕССУАРОВ 🛍️</div>
+            <div id="shopItemsList"></div>
+            <div class="shop-title" style="margin-top:8px">✨ НАДЕТО: <span id="currentAccessoryName">Нет</span></div>
+        </div>
+        
         <button class="newgame-btn" id="newGameBtn">🔄 НОВАЯ ИГРА (без сброса)</button>
         <button class="music-btn" id="musicToggleBtn">🎵 MUSIC ON</button>
-        <div class="tip">🖱️ КЛИК ПО КУБИКУ — УНИЧТОЖИТЬ<br>❌ ПРОПУЩЕННЫЙ БЛОК = −XP</div>
+        <div class="saved-badge" id="saveIndicator">💾 Прогресс сохраняется</div>
+        <div class="tip">🖱️ КЛИК ПО КУБИКУ — УНИЧТОЖИТЬ<br>⭐ ЗОЛОТЫЕ КУБИКИ ДАЮТ МОНЕТЫ</div>
     </div>
 </div>
 
 <script>
     (function(){
-        // ---------- МУЗЫКА ----------
+        // ---------- ПЛЕЙЛИСТ И МУЗЫКА (автопереключение) ----------
+        const playlist = ["pisef2.mp3", "hard1.mp3"];
+        let currentTrackIndex = 0;
         let music = null;
         let musicEnabled = true;
         let userInteracted = false;
         
         function initMusic() {
-            music = new Audio("pisef2.mp3");
-            music.loop = true;
+            if (music) {
+                music.pause();
+                music = null;
+            }
+            music = new Audio(playlist[currentTrackIndex]);
+            music.loop = false;
             music.volume = 0.35;
+            music.addEventListener('ended', () => {
+                currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+                initMusic();
+                if (musicEnabled && userInteracted) music.play().catch(e=>console.log);
+            });
             music.addEventListener('error', () => {
-                console.log("Файл pisef2.mp3 не найден, музыка не будет играть");
-                document.getElementById('musicToggleBtn').style.opacity = "0.6";
+                currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+                initMusic();
+                if (musicEnabled && userInteracted) music.play().catch(e=>console.log);
             });
         }
         
         function toggleMusic() {
-            if (!music) return;
             musicEnabled = !musicEnabled;
             const btn = document.getElementById('musicToggleBtn');
             if (musicEnabled) {
-                if (userInteracted) music.play().catch(e=>console.log);
+                if (userInteracted) {
+                    if (!music) initMusic();
+                    music.play().catch(e=>console.log);
+                }
                 btn.innerHTML = "🎵 MUSIC ON";
             } else {
-                music.pause();
+                if (music) music.pause();
                 btn.innerHTML = "🔇 MUSIC OFF";
             }
         }
@@ -365,9 +455,8 @@
         function onFirstInteraction() {
             if (!userInteracted) {
                 userInteracted = true;
-                if (music && musicEnabled) {
-                    music.play().catch(e => console.log("autoplay blocked, click again"));
-                }
+                if (!music) initMusic();
+                if (musicEnabled) music.play().catch(e=>console.log);
             }
         }
         
@@ -383,6 +472,7 @@
         let xp = 0;
         let xpNeeded = 110;
         let lives = 4;
+        let coins = 0;          // монеты для магазина
         
         let cubes = [];
         let particles = [];
@@ -405,6 +495,20 @@
             "#B980EA", "#7C77B9", "#5D9B6B", "#FF8C69", "#3BC9DB",
             "#FF70B8", "#F6AE9A", "#CE84AD"
         ];
+        
+        // ---------- АКСЕССУАРЫ ----------
+        const accessoriesList = [
+            { id: "none", name: "Нет", price: 0, emoji: "🚫" },
+            { id: "hat", name: "Цилиндр", price: 50, emoji: "🎩" },
+            { id: "glasses", name: "Очки", price: 80, emoji: "👓" },
+            { id: "mustache", name: "Усы", price: 60, emoji: "🧔" },
+            { id: "crown", name: "Корона", price: 150, emoji: "👑" },
+            { id: "cap", name: "Кепка", price: 100, emoji: "🧢" }
+        ];
+        
+        // Данные пользователя: купленные аксессуары и активный
+        let ownedAccessories = ["none"];
+        let activeAccessory = "none";
         
         // ---------- СИСТЕМА ПОЛЬЗОВАТЕЛЕЙ ----------
         let currentUser = null;
@@ -429,15 +533,16 @@
                     xp: xp,
                     xpNeeded: xpNeeded,
                     difficulty: currentDifficulty,
-                    lives: lives
+                    lives: lives,
+                    coins: coins,
+                    ownedAccessories: ownedAccessories,
+                    activeAccessory: activeAccessory
                 };
                 saveUsers(users);
                 const ind = document.getElementById('saveIndicator');
                 ind.style.color = "#aaffaa";
                 ind.innerHTML = "💾 Сохранено!";
-                setTimeout(() => {
-                    if (ind) ind.innerHTML = "💾 Прогресс сохраняется автоматически";
-                }, 1200);
+                setTimeout(() => { if(ind) ind.innerHTML = "💾 Прогресс сохраняется автоматически"; }, 1200);
             }
         }
         
@@ -452,9 +557,13 @@
             xpNeeded = data.xpNeeded || 110;
             lives = data.lives !== undefined ? data.lives : 4;
             currentDifficulty = data.difficulty || "medium";
+            coins = data.coins || 0;
+            ownedAccessories = data.ownedAccessories || ["none"];
+            activeAccessory = data.activeAccessory || "none";
             setDifficultyUI(currentDifficulty);
             applyDifficulty();
             updateUI();
+            updateShopUI();
             return true;
         }
         
@@ -464,12 +573,8 @@
             if (users[username]) return "Пользователь уже существует";
             users[username] = {
                 password: password,
-                score: 0,
-                level: 1,
-                xp: 0,
-                xpNeeded: 110,
-                difficulty: "medium",
-                lives: 4
+                score: 0, level: 1, xp: 0, xpNeeded: 110, difficulty: "medium", lives: 4, coins: 0,
+                ownedAccessories: ["none"], activeAccessory: "none"
             };
             saveUsers(users);
             return null;
@@ -486,15 +591,13 @@
         
         function logout() {
             currentUser = null;
-            score = 0;
-            level = 1;
-            xp = 0;
-            xpNeeded = 110;
-            lives = 4;
+            score = 0; level = 1; xp = 0; xpNeeded = 110; lives = 4; coins = 0;
+            ownedAccessories = ["none"]; activeAccessory = "none";
             currentDifficulty = "medium";
             setDifficultyUI("medium");
             applyDifficulty();
             updateUI();
+            updateShopUI();
             restartGame();
             document.getElementById('loginForm').style.display = "flex";
             document.getElementById('userPanel').style.display = "none";
@@ -507,25 +610,71 @@
             });
         }
         
-        function autoSave() {
-            if (currentUser) saveUserProgress();
+        function autoSave() { if (currentUser) saveUserProgress(); }
+        
+        // ---------- МАГАЗИН ----------
+        function buyAccessory(accessory) {
+            if (!currentUser) return;
+            if (ownedAccessories.includes(accessory.id)) return;
+            if (coins < accessory.price) return;
+            coins -= accessory.price;
+            ownedAccessories.push(accessory.id);
+            updateUI();
+            updateShopUI();
+            autoSave();
         }
         
-        // ---------- ИГРОВАЯ ЛОГИКА ----------
+        function equipAccessory(accessoryId) {
+            if (!ownedAccessories.includes(accessoryId)) return;
+            activeAccessory = accessoryId;
+            updateShopUI();
+            autoSave();
+        }
+        
+        function updateShopUI() {
+            const container = document.getElementById('shopItemsList');
+            if (!container) return;
+            container.innerHTML = '';
+            for (let acc of accessoriesList) {
+                if (acc.id === "none") continue;
+                const owned = ownedAccessories.includes(acc.id);
+                const active = (activeAccessory === acc.id);
+                const div = document.createElement('div');
+                div.className = 'accessory-item';
+                div.innerHTML = `
+                    <div class="accessory-name">${acc.emoji} ${acc.name}</div>
+                    <div class="accessory-price">${acc.price} 🪙</div>
+                    ${!owned ? `<button class="buy-btn" data-id="${acc.id}">Купить</button>` : 
+                      (active ? `<button class="equip-btn active" disabled>Надето</button>` : 
+                       `<button class="equip-btn" data-id="${acc.id}">Надеть</button>`)}
+                `;
+                container.appendChild(div);
+            }
+            // вешаем обработчики
+            document.querySelectorAll('.buy-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = btn.getAttribute('data-id');
+                    const acc = accessoriesList.find(a => a.id === id);
+                    if (acc) buyAccessory(acc);
+                });
+            });
+            document.querySelectorAll('.equip-btn:not([disabled])').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = btn.getAttribute('data-id');
+                    equipAccessory(id);
+                });
+            });
+            const currentAcc = accessoriesList.find(a => a.id === activeAccessory) || accessoriesList[0];
+            document.getElementById('currentAccessoryName').innerText = currentAcc.name;
+        }
+        
+        // ---------- ИГРОВАЯ ЛОГИКА (добавлены золотые блоки) ----------
         function applyDifficulty() {
             switch(currentDifficulty) {
-                case "easy":
-                    baseSpeed = 1.5;
-                    spawnBaseDelay = 34;
-                    break;
-                case "medium":
-                    baseSpeed = 2.1;
-                    spawnBaseDelay = 25;
-                    break;
-                case "hard":
-                    baseSpeed = 2.9;
-                    spawnBaseDelay = 18;
-                    break;
+                case "easy": baseSpeed = 1.5; spawnBaseDelay = 34; break;
+                case "medium": baseSpeed = 2.1; spawnBaseDelay = 25; break;
+                case "hard": baseSpeed = 2.9; spawnBaseDelay = 18; break;
             }
             for(let c of cubes) {
                 let sizeFactor = 1.2 - (c.size / MAX_SIZE) * 0.5;
@@ -538,6 +687,7 @@
         
         function updateUI() {
             document.getElementById('scoreValue').innerText = score;
+            document.getElementById('coinsValue').innerText = coins;
             let percent = (xp / xpNeeded) * 100;
             document.getElementById('xpFill').style.width = Math.min(100, percent) + "%";
             document.getElementById('levelText').innerHTML = `LVL ${level}`;
@@ -549,12 +699,22 @@
             applyDifficulty();
         }
         
-        function addPoints(amount) {
+        function addPoints(amount, isGolden = false) {
             if(!gameActive) return;
             let comboBonus = Math.floor(amount * 0.12 * combo);
             let total = amount + comboBonus;
             score += total;
             xp += total;
+            if (isGolden) {
+                let coinReward = Math.floor(30 + Math.random() * 40);
+                coins += coinReward;
+                updateUI();
+                // эффект монет
+                for(let i=0;i<8;i++) particles.push({
+                    x: 0, y: 0, vx: (Math.random()-0.5)*5, vy: (Math.random()-1)*4-2,
+                    life: 0.8, size: 4, color: "#ffcc44"
+                });
+            }
             while(xp >= xpNeeded && gameActive) {
                 xp -= xpNeeded;
                 level++;
@@ -569,15 +729,8 @@
         function penalizeXp(amount = 28) {
             if(!gameActive) return;
             xp -= amount;
-            if(xp < 0) {
-                gameActive = false;
-                if(animationId) cancelAnimationFrame(animationId);
-                animationId = null;
-                draw();
-                return;
-            }
-            updateUI();
-            autoSave();
+            if(xp < 0) { gameActive = false; if(animationId) cancelAnimationFrame(animationId); animationId = null; draw(); return; }
+            updateUI(); autoSave();
             canvas.style.filter = "brightness(0.85)";
             setTimeout(()=> canvas.style.filter = "", 120);
         }
@@ -585,54 +738,40 @@
         function loseLife() {
             if(!gameActive) return;
             lives--;
-            updateUI();
-            combo = 0;
+            updateUI(); combo=0;
             canvas.style.transform = "translateX(4px)";
             setTimeout(()=> canvas.style.transform = "", 80);
-            if(lives <= 0) {
-                gameActive = false;
-                if(animationId) cancelAnimationFrame(animationId);
-                animationId = null;
-                draw();
-                return;
-            }
+            if(lives <= 0) { gameActive = false; if(animationId) cancelAnimationFrame(animationId); animationId = null; draw(); }
             autoSave();
         }
         
         function levelUpEffect() {
-            for(let i=0;i<35;i++) {
-                particles.push({
-                    x: W/2, y: H/2,
-                    vx: (Math.random()-0.5)*7, vy: (Math.random()-0.8)*6-2,
-                    life: 0.9, size: 4+Math.random()*10,
-                    color: `hsl(${Math.random()*50+35}, 95%, 65%)`
-                });
-            }
+            for(let i=0;i<35;i++) particles.push({
+                x: W/2, y: H/2, vx: (Math.random()-0.5)*7, vy: (Math.random()-0.8)*6-2,
+                life: 0.9, size: 4+Math.random()*10, color: `hsl(${Math.random()*50+35}, 95%, 65%)`
+            });
             canvas.style.filter = "drop-shadow(0 0 6px gold) brightness(1.15)";
             setTimeout(()=> canvas.style.filter = "", 200);
         }
         
         function addExplosion(cx, cy, size, baseColor) {
             let count = Math.min(24, Math.floor(size/3)+7);
-            for(let i=0;i<count;i++) {
-                particles.push({
-                    x: cx, y: cy,
-                    vx: (Math.random()-0.5)*7.5, vy: (Math.random()-1)*5.8-2,
-                    life: 1.0, size: 3+Math.random()*9,
-                    color: baseColor
-                });
-            }
+            for(let i=0;i<count;i++) particles.push({
+                x: cx, y: cy, vx: (Math.random()-0.5)*7.5, vy: (Math.random()-1)*5.8-2,
+                life: 1.0, size: 3+Math.random()*9, color: baseColor
+            });
         }
         
         function spawnCube() {
             if(!gameActive) return;
+            const isGolden = Math.random() < 0.12; // 12% шанс золотого
             const size = random(MIN_SIZE, MAX_SIZE);
             const x = random(12, W - size - 12);
             const y = -size;
-            const color = randomColor();
+            const color = isGolden ? "#FFD966" : randomColor();
             let sizeFactor = 1.2 - (size / MAX_SIZE) * 0.5;
             let speedY = (baseSpeed * speedMultiplier) * (0.75 + sizeFactor * 0.7);
-            cubes.push({ x, y, size, color, speedY });
+            cubes.push({ x, y, size, color, speedY, isGolden });
         }
         
         function updateCubes() {
@@ -656,27 +795,20 @@
                 if(px >= c.x && px <= c.x + c.size && py >= c.y && py <= c.y + c.size) {
                     let basePoints = Math.floor((MAX_SIZE - c.size + 12) * 1.35) + 10;
                     basePoints = Math.max(28, basePoints);
-                    addPoints(basePoints);
+                    addPoints(basePoints, c.isGolden);
                     addExplosion(c.x + c.size/2, c.y + c.size/2, c.size, c.color);
                     cubes.splice(i,1);
-                    
                     let now = Date.now();
-                    if(now - lastDestroyTime < 550) {
-                        combo++;
-                        if(combo > 8) combo = 8;
-                    } else {
-                        combo = 1;
-                    }
+                    if(now - lastDestroyTime < 550) { combo++; if(combo>8) combo=8; } else combo=1;
                     lastDestroyTime = now;
                     glowIntensity = 1.0;
-                    
                     canvas.style.transform = "scale(0.98)";
                     setTimeout(()=> canvas.style.transform = "", 45);
                     return true;
                 }
             }
-            if(Date.now() - lastDestroyTime > 600) combo = 0;
-            if(glowIntensity > 0) glowIntensity -= 0.05;
+            if(Date.now() - lastDestroyTime > 600) combo=0;
+            if(glowIntensity>0) glowIntensity-=0.05;
             return false;
         }
         
@@ -688,35 +820,63 @@
                 if(level > 4 && Math.random()<0.4 && currentDifficulty !== "easy") count = 2;
                 for(let i=0;i<count;i++) spawnCube();
                 spawnCounter = dynamicDelay;
-            } else {
-                spawnCounter--;
-            }
+            } else spawnCounter--;
         }
         
         function updateParticles() {
             for(let i=0; i<particles.length; i++) {
                 const p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
+                p.x += p.vx; p.y += p.vy;
                 p.life -= 0.02;
                 p.size *= 0.98;
-                if(p.life <= 0 || p.size < 0.7) {
-                    particles.splice(i,1);
-                    i--;
-                }
+                if(p.life <= 0 || p.size < 0.7) { particles.splice(i,1); i--; }
             }
         }
         
-        // ---------- ОТРИСОВКА ----------
+        // ---------- ОТРИСОВКА (с аксессуарами) ----------
         function shadeColor(col, percent) {
             if(!col.startsWith('#')) return col;
-            let r = parseInt(col.slice(1,3),16);
-            let g = parseInt(col.slice(3,5),16);
-            let b = parseInt(col.slice(5,7),16);
+            let r = parseInt(col.slice(1,3),16), g = parseInt(col.slice(3,5),16), b = parseInt(col.slice(5,7),16);
             r = Math.min(255, Math.max(0, r + (r*percent)/100));
             g = Math.min(255, Math.max(0, g + (g*percent)/100));
             b = Math.min(255, Math.max(0, b + (b*percent)/100));
             return `rgb(${Math.floor(r)}, ${Math.floor(g)}, ${Math.floor(b)})`;
+        }
+        
+        function drawAccessory(c) {
+            const acc = activeAccessory;
+            const x = c.x, y = c.y, s = c.size;
+            ctx.save();
+            ctx.shadowBlur = 0;
+            if (acc === "hat") {
+                ctx.fillStyle = "#2c1e0e";
+                ctx.fillRect(x + s*0.2, y - s*0.15, s*0.6, s*0.2);
+                ctx.fillStyle = "#8B5A2B";
+                ctx.fillRect(x + s*0.3, y - s*0.25, s*0.4, s*0.12);
+            } else if (acc === "glasses") {
+                ctx.fillStyle = "#000000aa";
+                ctx.fillRect(x + s*0.2, y + s*0.35, s*0.25, s*0.12);
+                ctx.fillRect(x + s*0.55, y + s*0.35, s*0.25, s*0.12);
+                ctx.fillStyle = "#88ccff";
+                ctx.fillRect(x + s*0.22, y + s*0.36, s*0.2, s*0.08);
+                ctx.fillRect(x + s*0.57, y + s*0.36, s*0.2, s*0.08);
+            } else if (acc === "mustache") {
+                ctx.fillStyle = "#5a3a1a";
+                ctx.beginPath();
+                ctx.ellipse(x + s*0.5, y + s*0.65, s*0.2, s*0.08, 0, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillRect(x + s*0.3, y + s*0.62, s*0.4, s*0.06);
+            } else if (acc === "crown") {
+                ctx.fillStyle = "#ffcc44";
+                ctx.fillRect(x + s*0.25, y - s*0.1, s*0.5, s*0.15);
+                for(let i=0;i<3;i++) ctx.fillRect(x + s*(0.3+i*0.2), y - s*0.2, s*0.1, s*0.15);
+            } else if (acc === "cap") {
+                ctx.fillStyle = "#3366aa";
+                ctx.fillRect(x + s*0.15, y - s*0.05, s*0.7, s*0.18);
+                ctx.fillStyle = "#224477";
+                ctx.fillRect(x + s*0.4, y - s*0.12, s*0.2, s*0.12);
+            }
+            ctx.restore();
         }
         
         function drawCube(c) {
@@ -735,224 +895,59 @@
             ctx.fillRect(c.x+4, c.y+4, c.size-10, 5);
             ctx.fillStyle = "rgba(255,255,245,0.3)";
             ctx.fillRect(c.x+2, c.y+c.size-8, c.size-6, 3);
+            // глазки
             ctx.fillStyle = "#FFFFFF";
-            ctx.beginPath();
-            ctx.arc(c.x + c.size*0.3, c.y + c.size*0.4, c.size*0.09, 0, Math.PI*2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(c.x + c.size*0.7, c.y + c.size*0.4, c.size*0.09, 0, Math.PI*2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(c.x + c.size*0.3, c.y + c.size*0.4, c.size*0.09, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(c.x + c.size*0.7, c.y + c.size*0.4, c.size*0.09, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = "#1f1a10";
-            ctx.beginPath();
-            ctx.arc(c.x + c.size*0.28, c.y + c.size*0.38, c.size*0.045, 0, Math.PI*2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(c.x + c.size*0.68, c.y + c.size*0.38, c.size*0.045, 0, Math.PI*2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(c.x + c.size*0.5, c.y + c.size*0.62, c.size*0.1, 0.05, Math.PI - 0.05);
-            ctx.strokeStyle = "#442200";
-            ctx.lineWidth = Math.max(2, c.size*0.055);
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(c.x + c.size*0.28, c.y + c.size*0.38, c.size*0.045, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(c.x + c.size*0.68, c.y + c.size*0.38, c.size*0.045, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(c.x + c.size*0.5, c.y + c.size*0.62, c.size*0.1, 0.05, Math.PI - 0.05);
+            ctx.strokeStyle = "#442200"; ctx.lineWidth = Math.max(2, c.size*0.055); ctx.stroke();
+            // аксессуар
+            drawAccessory(c);
             ctx.restore();
         }
         
         function drawBackground() {
             const grad = ctx.createLinearGradient(0,0,0,H);
-            grad.addColorStop(0, "#0c1126");
-            grad.addColorStop(1, "#18223c");
-            ctx.fillStyle = grad;
-            ctx.fillRect(0,0,W,H);
-            for(let i=0;i<100;i++) {
-                ctx.fillStyle = `rgba(255,220,150,${0.15+Math.sin(Date.now()*0.001+i)*0.05})`;
-                ctx.fillRect( (i*131)%W, (i*73)%H, 1.5,1.5);
-            }
-            if(glowIntensity > 0) {
-                ctx.globalAlpha = 0.12 * glowIntensity;
-                ctx.fillStyle = "#ffaa66";
-                ctx.fillRect(0,0,W,H);
-                ctx.globalAlpha = 1;
-            }
+            grad.addColorStop(0, "#0c1126"); grad.addColorStop(1, "#18223c");
+            ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+            for(let i=0;i<100;i++) ctx.fillStyle = `rgba(255,220,150,${0.15+Math.sin(Date.now()*0.001+i)*0.05})`, ctx.fillRect( (i*131)%W, (i*73)%H, 1.5,1.5);
+            if(glowIntensity>0) { ctx.globalAlpha=0.12*glowIntensity; ctx.fillStyle="#ffaa66"; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
         }
         
-        function drawParticles() {
-            for(let p of particles) {
-                ctx.globalAlpha = p.life;
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
-            }
-            ctx.globalAlpha = 1;
-        }
+        function drawParticles() { for(let p of particles) { ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x-p.size/2, p.y-p.size/2, p.size, p.size); } ctx.globalAlpha=1; }
+        function drawGameOver() { if(!gameActive) { ctx.fillStyle="rgba(0,0,0,0.85)"; ctx.fillRect(0,0,W,H); ctx.font="800 36px 'Segoe UI'"; ctx.fillStyle="#ffcf8a"; ctx.fillText("GAME OVER", W/2-110, H/2-20); ctx.font="16px monospace"; ctx.fillStyle="#ddb982"; ctx.fillText("нажмите «НОВАЯ ИГРА»", W/2-100, H/2+45); } }
+        function draw() { drawBackground(); for(let c of cubes) drawCube(c); drawParticles(); drawGameOver(); }
         
-        function drawGameOver() {
-            if(!gameActive) {
-                ctx.fillStyle = "rgba(0,0,0,0.85)";
-                ctx.fillRect(0,0,W,H);
-                ctx.font = "800 36px 'Segoe UI'";
-                ctx.fillStyle = "#ffcf8a";
-                ctx.fillText("GAME OVER", W/2-110, H/2-20);
-                ctx.font = "16px monospace";
-                ctx.fillStyle = "#ddb982";
-                ctx.fillText("нажмите «НОВАЯ ИГРА»", W/2-100, H/2+45);
-            }
-        }
+        function handleCanvasClick(e) { if(!gameActive) return; onFirstInteraction(); const rect = canvas.getBoundingClientRect(); const sx = canvas.width/rect.width, sy = canvas.height/rect.height; let mx,my; if(e.touches) { mx=(e.touches[0].clientX-rect.left)*sx; my=(e.touches[0].clientY-rect.top)*sy; e.preventDefault(); } else { mx=(e.clientX-rect.left)*sx; my=(e.clientY-rect.top)*sy; } destroyAt(mx,my); }
+        function setDifficulty(diff) { currentDifficulty=diff; applyDifficulty(); setDifficultyUI(diff); if(currentUser) autoSave(); restartGame(); }
+        function restartGame() { if(animationId) cancelAnimationFrame(animationId); gameActive=true; cubes=[]; particles=[]; combo=0; glowIntensity=0; spawnCounter=3; lives=4; updateUI(); applyDifficulty(); for(let i=0;i<4;i++) spawnCube(); animationId=requestAnimationFrame(gameLoop); }
+        function newGameNoReset() { if(!gameActive) gameActive=true; cubes=[]; particles=[]; combo=0; glowIntensity=0; lives=4; updateUI(); restartGame(); }
+        function gameUpdate() { if(!gameActive) return; handleSpawning(); updateCubes(); updateParticles(); if(glowIntensity>0) glowIntensity-=0.02; }
+        function gameLoop() { gameUpdate(); draw(); animationId=requestAnimationFrame(gameLoop); }
         
-        function draw() {
-            drawBackground();
-            for(let c of cubes) drawCube(c);
-            drawParticles();
-            drawGameOver();
-        }
-        
-        // ---------- УПРАВЛЕНИЕ ----------
-        function handleCanvasClick(e) {
-            if(!gameActive) return;
-            onFirstInteraction();
-            const rect = canvas.getBoundingClientRect();
-            const sx = canvas.width / rect.width;
-            const sy = canvas.height / rect.height;
-            let mx, my;
-            if(e.touches) {
-                mx = (e.touches[0].clientX - rect.left) * sx;
-                my = (e.touches[0].clientY - rect.top) * sy;
-                e.preventDefault();
-            } else {
-                mx = (e.clientX - rect.left) * sx;
-                my = (e.clientY - rect.top) * sy;
-            }
-            destroyAt(mx, my);
-        }
-        
-        function setDifficulty(diff) {
-            currentDifficulty = diff;
-            applyDifficulty();
-            setDifficultyUI(diff);
-            if (currentUser) autoSave();
-            restartGame();
-        }
-        
-        function restartGame() {
-            if(animationId) cancelAnimationFrame(animationId);
-            gameActive = true;
-            cubes = [];
-            particles = [];
-            combo = 0;
-            glowIntensity = 0;
-            spawnCounter = 3;
-            lives = 4;
-            updateUI();
-            applyDifficulty();
-            for(let i=0;i<4;i++) spawnCube();
-            animationId = requestAnimationFrame(gameLoop);
-        }
-        
-        function newGameNoReset() {
-            if (!gameActive) gameActive = true;
-            cubes = [];
-            particles = [];
-            combo = 0;
-            glowIntensity = 0;
-            lives = 4;
-            updateUI();
-            restartGame();
-        }
-        
-        // ---------- ЦИКЛ ----------
-        function gameUpdate() {
-            if(!gameActive) return;
-            handleSpawning();
-            updateCubes();
-            updateParticles();
-            if(glowIntensity > 0) glowIntensity -= 0.02;
-        }
-        
-        function gameLoop() {
-            gameUpdate();
-            draw();
-            animationId = requestAnimationFrame(gameLoop);
-        }
-        
-        // ---------- АВТОРИЗАЦИЯ UI ----------
         function initAuthUI() {
             const loginFormDiv = document.getElementById('loginForm');
             const userPanelDiv = document.getElementById('userPanel');
             const usernameSpan = document.getElementById('currentUsername');
-            
-            document.getElementById('doLoginBtn').onclick = () => {
-                onFirstInteraction();
-                const user = document.getElementById('loginUsername').value.trim();
-                const pass = document.getElementById('loginPassword').value;
-                const err = login(user, pass);
-                if (err) {
-                    document.getElementById('loginError').innerText = err;
-                    return;
-                }
-                document.getElementById('loginError').innerText = "";
-                loadUserProgress();
-                updateUI();
-                restartGame();
-                loginFormDiv.style.display = "none";
-                userPanelDiv.style.display = "flex";
-                usernameSpan.innerText = currentUser.username;
-            };
-            
-            document.getElementById('doRegisterBtn').onclick = () => {
-                onFirstInteraction();
-                const user = document.getElementById('loginUsername').value.trim();
-                const pass = document.getElementById('loginPassword').value;
-                const err = register(user, pass);
-                if (err) {
-                    document.getElementById('loginError').innerText = err;
-                    return;
-                }
-                document.getElementById('loginError').innerText = "Регистрация успешна! Вход...";
-                const err2 = login(user, pass);
-                if (!err2) {
-                    loadUserProgress();
-                    updateUI();
-                    restartGame();
-                    loginFormDiv.style.display = "none";
-                    userPanelDiv.style.display = "flex";
-                    usernameSpan.innerText = currentUser.username;
-                }
-            };
-            
-            document.getElementById('logoutLocalBtn').onclick = () => {
-                onFirstInteraction();
-                logout();
-                loginFormDiv.style.display = "flex";
-                userPanelDiv.style.display = "none";
-                document.getElementById('loginUsername').value = "";
-                document.getElementById('loginPassword').value = "";
-            };
+            document.getElementById('doLoginBtn').onclick = () => { onFirstInteraction(); const user=document.getElementById('loginUsername').value.trim(); const pass=document.getElementById('loginPassword').value; const err=login(user,pass); if(err){document.getElementById('loginError').innerText=err; return;} document.getElementById('loginError').innerText=""; loadUserProgress(); updateUI(); updateShopUI(); restartGame(); loginFormDiv.style.display="none"; userPanelDiv.style.display="flex"; usernameSpan.innerText=currentUser.username; };
+            document.getElementById('doRegisterBtn').onclick = () => { onFirstInteraction(); const user=document.getElementById('loginUsername').value.trim(); const pass=document.getElementById('loginPassword').value; const err=register(user,pass); if(err){document.getElementById('loginError').innerText=err; return;} document.getElementById('loginError').innerText="Регистрация успешна! Вход..."; const err2=login(user,pass); if(!err2){ loadUserProgress(); updateUI(); updateShopUI(); restartGame(); loginFormDiv.style.display="none"; userPanelDiv.style.display="flex"; usernameSpan.innerText=currentUser.username; } };
+            document.getElementById('logoutLocalBtn').onclick = () => { onFirstInteraction(); logout(); loginFormDiv.style.display="flex"; userPanelDiv.style.display="none"; document.getElementById('loginUsername').value=""; document.getElementById('loginPassword').value=""; };
         }
         
-        // ---------- ЗАПУСК ----------
         function init() {
             initMusic();
             initAuthUI();
             restartGame();
             canvas.addEventListener('click', handleCanvasClick);
-            canvas.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                handleCanvasClick(e);
-            });
-            document.querySelectorAll('.diff-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const diff = btn.getAttribute('data-diff');
-                    setDifficulty(diff);
-                });
-            });
-            document.getElementById('newGameBtn').addEventListener('click', () => {
-                onFirstInteraction();
-                newGameNoReset();
-            });
-            document.getElementById('musicToggleBtn').addEventListener('click', () => {
-                onFirstInteraction();
-                toggleMusic();
-            });
+            canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleCanvasClick(e); });
+            document.querySelectorAll('.diff-btn').forEach(btn => { btn.addEventListener('click', () => { const diff=btn.getAttribute('data-diff'); setDifficulty(diff); }); });
+            document.getElementById('newGameBtn').addEventListener('click', () => { onFirstInteraction(); newGameNoReset(); });
+            document.getElementById('musicToggleBtn').addEventListener('click', () => { onFirstInteraction(); toggleMusic(); });
+            updateShopUI();
         }
-        
         init();
     })();
 </script>
