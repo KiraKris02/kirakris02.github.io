@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>CubiX V2</title>
+    <title>CubiX</title>
     <style>
         * {
             user-select: none;
@@ -136,11 +136,21 @@
             backdrop-filter: blur(12px);
             border-radius: 40px;
             padding: 20px 24px;
-            min-width: 210px;
+            min-width: 220px;
             border: 1px solid #ffb347;
             display: flex;
             flex-direction: column;
             gap: 15px;
+        }
+        .game-title {
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #FFE6B0, #FFA53D);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 5px;
         }
         .difficulty-title {
             color: #ffdd99;
@@ -183,8 +193,8 @@
             box-shadow: 0 3px 0 #1a452c;
             color: #ffffff;
         }
-        .restart-btn {
-            background: linear-gradient(95deg, #f3a25b, #e07c2c);
+        .music-btn {
+            background: linear-gradient(95deg, #5a3a7a, #3a2a5a);
             border: none;
             font-family: inherit;
             font-weight: bold;
@@ -192,14 +202,13 @@
             padding: 8px 0;
             border-radius: 60px;
             cursor: pointer;
-            margin-top: 8px;
             transition: 0.07s linear;
-            box-shadow: 0 3px 0 #78461a;
-            color: #2b1a07;
+            box-shadow: 0 3px 0 #2a1a3a;
+            color: #ffddbb;
         }
-        .restart-btn:active, .newgame-btn:active {
+        .newgame-btn:active, .music-btn:active {
             transform: translateY(2px);
-            box-shadow: 0 1px 0 #78461a;
+            box-shadow: 0 1px 0 #1a452c;
         }
         .tip {
             font-size: 0.65rem;
@@ -291,6 +300,7 @@
     </div>
 
     <div class="difficulty-panel">
+        <div class="game-title">CubiX</div>
         <div class="difficulty-title">⚙️ СЛОЖНОСТЬ</div>
         <div class="diff-buttons">
             <button class="diff-btn" data-diff="easy">🍃 ЛЁГКИЙ</button>
@@ -316,20 +326,57 @@
         </div>
         
         <div class="saved-badge" id="saveIndicator">💾 Прогресс сохраняется</div>
-        <button class="newgame-btn" id="newGameBtn">🔄 НОВАЯ ИГРА (без сброса прогресса)</button>
+        <button class="newgame-btn" id="newGameBtn">🔄 НОВАЯ ИГРА (без сброса)</button>
+        <button class="music-btn" id="musicToggleBtn">🎵 MUSIC ON</button>
         <div class="tip">🖱️ КЛИК ПО КУБИКУ — УНИЧТОЖИТЬ<br>❌ ПРОПУЩЕННЫЙ БЛОК = −XP</div>
     </div>
 </div>
 
 <script>
     (function(){
+        // ---------- МУЗЫКА ----------
+        let music = null;
+        let musicEnabled = true;
+        let userInteracted = false;
+        
+        function initMusic() {
+            music = new Audio("pisef2.mp3");
+            music.loop = true;
+            music.volume = 0.35;
+            music.addEventListener('error', () => {
+                console.log("Файл pisef2.mp3 не найден, музыка не будет играть");
+                document.getElementById('musicToggleBtn').style.opacity = "0.6";
+            });
+        }
+        
+        function toggleMusic() {
+            if (!music) return;
+            musicEnabled = !musicEnabled;
+            const btn = document.getElementById('musicToggleBtn');
+            if (musicEnabled) {
+                if (userInteracted) music.play().catch(e=>console.log);
+                btn.innerHTML = "🎵 MUSIC ON";
+            } else {
+                music.pause();
+                btn.innerHTML = "🔇 MUSIC OFF";
+            }
+        }
+        
+        function onFirstInteraction() {
+            if (!userInteracted) {
+                userInteracted = true;
+                if (music && musicEnabled) {
+                    music.play().catch(e => console.log("autoplay blocked, click again"));
+                }
+            }
+        }
+        
         // ---------- ИГРОВОЕ ПОЛЕ ----------
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const W = canvas.width = 720;
         const H = canvas.height = 540;
         
-        // ---------- ИГРОВЫЕ ПЕРЕМЕННЫЕ ----------
         let gameActive = true;
         let score = 0;
         let level = 1;
@@ -439,7 +486,6 @@
         
         function logout() {
             currentUser = null;
-            // Сброс до значений по умолчанию
             score = 0;
             level = 1;
             xp = 0;
@@ -761,6 +807,7 @@
         // ---------- УПРАВЛЕНИЕ ----------
         function handleCanvasClick(e) {
             if(!gameActive) return;
+            onFirstInteraction();
             const rect = canvas.getBoundingClientRect();
             const sx = canvas.width / rect.width;
             const sy = canvas.height / rect.height;
@@ -781,7 +828,7 @@
             applyDifficulty();
             setDifficultyUI(diff);
             if (currentUser) autoSave();
-            restartGame(); // перезапуск с новой сложностью, но прогресс не сбрасывается
+            restartGame();
         }
         
         function restartGame() {
@@ -792,7 +839,6 @@
             combo = 0;
             glowIntensity = 0;
             spawnCounter = 3;
-            // Восстанавливаем жизни до 4, но очки/уровень/XP не трогаем!
             lives = 4;
             updateUI();
             applyDifficulty();
@@ -800,19 +846,15 @@
             animationId = requestAnimationFrame(gameLoop);
         }
         
-        // Новая игра без сброса прогресса (очистка поля + восстановление жизней)
         function newGameNoReset() {
-            if (!gameActive) {
-                // если игра закончена, перезапускаем с теми же очками
-                gameActive = true;
-            }
+            if (!gameActive) gameActive = true;
             cubes = [];
             particles = [];
             combo = 0;
             glowIntensity = 0;
             lives = 4;
             updateUI();
-            restartGame(); // restartGame уже делает очистку и запуск
+            restartGame();
         }
         
         // ---------- ЦИКЛ ----------
@@ -837,6 +879,7 @@
             const usernameSpan = document.getElementById('currentUsername');
             
             document.getElementById('doLoginBtn').onclick = () => {
+                onFirstInteraction();
                 const user = document.getElementById('loginUsername').value.trim();
                 const pass = document.getElementById('loginPassword').value;
                 const err = login(user, pass);
@@ -854,6 +897,7 @@
             };
             
             document.getElementById('doRegisterBtn').onclick = () => {
+                onFirstInteraction();
                 const user = document.getElementById('loginUsername').value.trim();
                 const pass = document.getElementById('loginPassword').value;
                 const err = register(user, pass);
@@ -874,6 +918,7 @@
             };
             
             document.getElementById('logoutLocalBtn').onclick = () => {
+                onFirstInteraction();
                 logout();
                 loginFormDiv.style.display = "flex";
                 userPanelDiv.style.display = "none";
@@ -884,6 +929,7 @@
         
         // ---------- ЗАПУСК ----------
         function init() {
+            initMusic();
             initAuthUI();
             restartGame();
             canvas.addEventListener('click', handleCanvasClick);
@@ -897,7 +943,14 @@
                     setDifficulty(diff);
                 });
             });
-            document.getElementById('newGameBtn').addEventListener('click', () => newGameNoReset());
+            document.getElementById('newGameBtn').addEventListener('click', () => {
+                onFirstInteraction();
+                newGameNoReset();
+            });
+            document.getElementById('musicToggleBtn').addEventListener('click', () => {
+                onFirstInteraction();
+                toggleMusic();
+            });
         }
         
         init();
