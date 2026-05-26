@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>CubiX):</title>
+    <title>CubiX | V2.4</title>
     <style>
         * {
             user-select: none;
@@ -342,9 +342,7 @@
             font-size: 0.7rem;
             text-align: center;
         }
-        ::-webkit-scrollbar {
-            width: 4px;
-        }
+        ::-webkit-scrollbar { width: 4px; }
     </style>
 </head>
 <body>
@@ -394,7 +392,6 @@
             </div>
         </div>
         
-        <!-- МАГАЗИН АКСЕССУАРОВ -->
         <div class="shop-section">
             <div class="shop-title">🛍️ МАГАЗИН АКСЕССУАРОВ 🛍️</div>
             <div id="shopItemsList"></div>
@@ -418,10 +415,7 @@
         let userInteracted = false;
         
         function initMusic() {
-            if (music) {
-                music.pause();
-                music = null;
-            }
+            if (music) { music.pause(); music = null; }
             music = new Audio(playlist[currentTrackIndex]);
             music.loop = false;
             music.volume = 0.35;
@@ -441,10 +435,7 @@
             musicEnabled = !musicEnabled;
             const btn = document.getElementById('musicToggleBtn');
             if (musicEnabled) {
-                if (userInteracted) {
-                    if (!music) initMusic();
-                    music.play().catch(e=>console.log);
-                }
+                if (userInteracted) { if (!music) initMusic(); music.play().catch(e=>console.log); }
                 btn.innerHTML = "🎵 MUSIC ON";
             } else {
                 if (music) music.pause();
@@ -472,7 +463,7 @@
         let xp = 0;
         let xpNeeded = 110;
         let lives = 4;
-        let coins = 0;          // монеты для магазина
+        let coins = 0;
         
         let cubes = [];
         let particles = [];
@@ -482,7 +473,7 @@
         
         let currentDifficulty = "medium";
         let baseSpeed = 2.2;
-        let spawnBaseDelay = 24;
+        let spawnBaseDelay = 28;     // Увеличен базовый интервал спавна (было 25)
         let spawnCounter = 0;
         let speedMultiplier = 1.0;
         
@@ -506,7 +497,6 @@
             { id: "cap", name: "Кепка", price: 100, emoji: "🧢" }
         ];
         
-        // Данные пользователя: купленные аксессуары и активный
         let ownedAccessories = ["none"];
         let activeAccessory = "none";
         
@@ -528,15 +518,10 @@
             if (users[currentUser.username]) {
                 users[currentUser.username] = {
                     password: users[currentUser.username].password,
-                    score: score,
-                    level: level,
-                    xp: xp,
-                    xpNeeded: xpNeeded,
+                    score, level, xp, xpNeeded,
                     difficulty: currentDifficulty,
-                    lives: lives,
-                    coins: coins,
-                    ownedAccessories: ownedAccessories,
-                    activeAccessory: activeAccessory
+                    lives, coins,
+                    ownedAccessories, activeAccessory
                 };
                 saveUsers(users);
                 const ind = document.getElementById('saveIndicator');
@@ -571,11 +556,7 @@
             if (!username || !password) return "Заполните логин и пароль";
             const users = getUsers();
             if (users[username]) return "Пользователь уже существует";
-            users[username] = {
-                password: password,
-                score: 0, level: 1, xp: 0, xpNeeded: 110, difficulty: "medium", lives: 4, coins: 0,
-                ownedAccessories: ["none"], activeAccessory: "none"
-            };
+            users[username] = { password, score:0, level:1, xp:0, xpNeeded:110, difficulty:"medium", lives:4, coins:0, ownedAccessories:["none"], activeAccessory:"none" };
             saveUsers(users);
             return null;
         }
@@ -585,7 +566,7 @@
             const user = users[username];
             if (!user) return "Неверный логин";
             if (user.password !== password) return "Неверный пароль";
-            currentUser = { username: username };
+            currentUser = { username };
             return null;
         }
         
@@ -650,7 +631,6 @@
                 `;
                 container.appendChild(div);
             }
-            // вешаем обработчики
             document.querySelectorAll('.buy-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -669,12 +649,12 @@
             document.getElementById('currentAccessoryName').innerText = currentAcc.name;
         }
         
-        // ---------- ИГРОВАЯ ЛОГИКА (добавлены золотые блоки) ----------
+        // ---------- ИГРОВАЯ ЛОГИКА ----------
         function applyDifficulty() {
             switch(currentDifficulty) {
                 case "easy": baseSpeed = 1.5; spawnBaseDelay = 34; break;
-                case "medium": baseSpeed = 2.1; spawnBaseDelay = 25; break;
-                case "hard": baseSpeed = 2.9; spawnBaseDelay = 18; break;
+                case "medium": baseSpeed = 2.1; spawnBaseDelay = 28; break;
+                case "hard": baseSpeed = 2.9; spawnBaseDelay = 22; break;
             }
             for(let c of cubes) {
                 let sizeFactor = 1.2 - (c.size / MAX_SIZE) * 0.5;
@@ -709,7 +689,6 @@
                 let coinReward = Math.floor(30 + Math.random() * 40);
                 coins += coinReward;
                 updateUI();
-                // эффект монет
                 for(let i=0;i<8;i++) particles.push({
                     x: 0, y: 0, vx: (Math.random()-0.5)*5, vy: (Math.random()-1)*4-2,
                     life: 0.8, size: 4, color: "#ffcc44"
@@ -764,7 +743,7 @@
         
         function spawnCube() {
             if(!gameActive) return;
-            const isGolden = Math.random() < 0.12; // 12% шанс золотого
+            const isGolden = Math.random() < 0.12;
             const size = random(MIN_SIZE, MAX_SIZE);
             const x = random(12, W - size - 12);
             const y = -size;
@@ -812,15 +791,22 @@
             return false;
         }
         
+        // ИЗМЕНЁННЫЙ СПАВН: реже пачками, максимум 2-3, но шанс ниже
         function handleSpawning() {
             if(!gameActive) return;
-            let dynamicDelay = Math.max(9, spawnBaseDelay - Math.floor(level * 0.5));
+            let dynamicDelay = Math.max(12, spawnBaseDelay - Math.floor(level * 0.4));
             if(spawnCounter <= 0) {
                 let count = 1;
-                if(level > 4 && Math.random()<0.4 && currentDifficulty !== "easy") count = 2;
+                // реже появляются пачки (шанс 20% вместо 40%, и только если уровень > 3)
+                if(level > 3 && Math.random() < 0.2) {
+                    if (Math.random() < 0.3) count = 3;  // очень редко 3
+                    else count = 2;
+                }
                 for(let i=0;i<count;i++) spawnCube();
                 spawnCounter = dynamicDelay;
-            } else spawnCounter--;
+            } else {
+                spawnCounter--;
+            }
         }
         
         function updateParticles() {
@@ -895,7 +881,6 @@
             ctx.fillRect(c.x+4, c.y+4, c.size-10, 5);
             ctx.fillStyle = "rgba(255,255,245,0.3)";
             ctx.fillRect(c.x+2, c.y+c.size-8, c.size-6, 3);
-            // глазки
             ctx.fillStyle = "#FFFFFF";
             ctx.beginPath(); ctx.arc(c.x + c.size*0.3, c.y + c.size*0.4, c.size*0.09, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(c.x + c.size*0.7, c.y + c.size*0.4, c.size*0.09, 0, Math.PI*2); ctx.fill();
@@ -904,7 +889,6 @@
             ctx.beginPath(); ctx.arc(c.x + c.size*0.68, c.y + c.size*0.38, c.size*0.045, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(c.x + c.size*0.5, c.y + c.size*0.62, c.size*0.1, 0.05, Math.PI - 0.05);
             ctx.strokeStyle = "#442200"; ctx.lineWidth = Math.max(2, c.size*0.055); ctx.stroke();
-            // аксессуар
             drawAccessory(c);
             ctx.restore();
         }
