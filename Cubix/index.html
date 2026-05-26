@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>CubiX</title>
+    <title>CubiX V2</title>
     <style>
         * {
             user-select: none;
@@ -170,6 +170,19 @@
             color: #1e1a0c;
             box-shadow: 0 0 10px #ffaa33;
         }
+        .newgame-btn {
+            background: linear-gradient(95deg, #3a8c5a, #236b42);
+            border: none;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 1rem;
+            padding: 8px 0;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.07s linear;
+            box-shadow: 0 3px 0 #1a452c;
+            color: #ffffff;
+        }
         .restart-btn {
             background: linear-gradient(95deg, #f3a25b, #e07c2c);
             border: none;
@@ -184,7 +197,7 @@
             box-shadow: 0 3px 0 #78461a;
             color: #2b1a07;
         }
-        .restart-btn:active {
+        .restart-btn:active, .newgame-btn:active {
             transform: translateY(2px);
             box-shadow: 0 1px 0 #78461a;
         }
@@ -303,7 +316,7 @@
         </div>
         
         <div class="saved-badge" id="saveIndicator">💾 Прогресс сохраняется</div>
-        <button class="restart-btn" id="restartButton">🔄 СБРОС ПРОГРЕССА</button>
+        <button class="newgame-btn" id="newGameBtn">🔄 НОВАЯ ИГРА (без сброса прогресса)</button>
         <div class="tip">🖱️ КЛИК ПО КУБИКУ — УНИЧТОЖИТЬ<br>❌ ПРОПУЩЕННЫЙ БЛОК = −XP</div>
     </div>
 </div>
@@ -322,7 +335,7 @@
         let level = 1;
         let xp = 0;
         let xpNeeded = 110;
-        let lives = 4;                // 4 жизни
+        let lives = 4;
         
         let cubes = [];
         let particles = [];
@@ -482,7 +495,6 @@
             let percent = (xp / xpNeeded) * 100;
             document.getElementById('xpFill').style.width = Math.min(100, percent) + "%";
             document.getElementById('levelText').innerHTML = `LVL ${level}`;
-            // отображение жизней
             let hearts = "";
             for(let i=0; i<lives; i++) hearts += "❤️ ";
             for(let i=lives; i<4; i++) hearts += "🖤 ";
@@ -581,7 +593,6 @@
             for(let i=0; i<cubes.length; i++) {
                 const c = cubes[i];
                 c.y += c.speedY;
-                // если кубик упал вниз — теряем жизнь
                 if(c.y + c.size >= H) {
                     loseLife();
                     addExplosion(c.x + c.size/2, H-20, c.size, "#aa5555");
@@ -736,7 +747,7 @@
                 ctx.fillText("GAME OVER", W/2-110, H/2-20);
                 ctx.font = "16px monospace";
                 ctx.fillStyle = "#ddb982";
-                ctx.fillText("нажмите СБРОС ПРОГРЕССА", W/2-120, H/2+45);
+                ctx.fillText("нажмите «НОВАЯ ИГРА»", W/2-100, H/2+45);
             }
         }
         
@@ -770,6 +781,7 @@
             applyDifficulty();
             setDifficultyUI(diff);
             if (currentUser) autoSave();
+            restartGame(); // перезапуск с новой сложностью, но прогресс не сбрасывается
         }
         
         function restartGame() {
@@ -779,23 +791,28 @@
             particles = [];
             combo = 0;
             glowIntensity = 0;
-            speedMultiplier = 1 + (level-1) * 0.16;
             spawnCounter = 3;
+            // Восстанавливаем жизни до 4, но очки/уровень/XP не трогаем!
+            lives = 4;
+            updateUI();
             applyDifficulty();
             for(let i=0;i<4;i++) spawnCube();
             animationId = requestAnimationFrame(gameLoop);
         }
         
-        function newGameReset() {
-            if (!currentUser) return;
-            score = 0;
-            level = 1;
-            xp = 0;
-            xpNeeded = 110;
+        // Новая игра без сброса прогресса (очистка поля + восстановление жизней)
+        function newGameNoReset() {
+            if (!gameActive) {
+                // если игра закончена, перезапускаем с теми же очками
+                gameActive = true;
+            }
+            cubes = [];
+            particles = [];
+            combo = 0;
+            glowIntensity = 0;
             lives = 4;
             updateUI();
-            autoSave();
-            restartGame();
+            restartGame(); // restartGame уже делает очистку и запуск
         }
         
         // ---------- ЦИКЛ ----------
@@ -878,10 +895,9 @@
                 btn.addEventListener('click', () => {
                     const diff = btn.getAttribute('data-diff');
                     setDifficulty(diff);
-                    restartGame();
                 });
             });
-            document.getElementById('restartButton').addEventListener('click', () => newGameReset());
+            document.getElementById('newGameBtn').addEventListener('click', () => newGameNoReset());
         }
         
         init();
