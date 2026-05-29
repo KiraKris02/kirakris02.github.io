@@ -1,0 +1,102 @@
+const songTitle = document.getElementById('current-song');
+        const stationItems = document.querySelectorAll('.station-item');
+
+        const volumeSlider = document.getElementById('volume');
+        const bassSlider = document.getElementById('bass');
+        const trebleSlider = document.getElementById('treble');
+
+        const volVal = document.getElementById('vol-val');
+        const bassVal = document.getElementById('bass-val');
+        const trebleVal = document.getElementById('treble-val');
+
+        let audioCtx, track, bassFilter, trebleFilter;
+        let isAudioSetup = false;
+        let isPlaying = false;
+
+        function initAudioEngine() {
+            if (isAudioSetup) return;
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                track = audioCtx.createMediaElementSource(audio);
+
+                bassFilter = audioCtx.createBiquadFilter();
+                bassFilter.type = 'lowshelf';
+                bassFilter.frequency.value = 150; 
+                bassFilter.gain.value = parseInt(bassSlider.value);
+
+                trebleFilter = audioCtx.createBiquadFilter();
+                trebleFilter.type = 'highshelf';
+                trebleFilter.frequency.value = 3500; 
+                trebleFilter.gain.value = parseInt(trebleSlider.value);
+
+                track.connect(bassFilter);
+                bassFilter.connect(trebleFilter);
+                trebleFilter.connect(audioCtx.destination);
+                isAudioSetup = true;
+            } catch(e) {
+                console.log("Эквалайзер ожидает активации потока");
+            }
+        }
+
+        stationItems.forEach(item => {
+            item.addEventListener('click', () => {
+                stationItems.forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+
+                const name = item.getAttribute('data-name');
+                const song = item.getAttribute('data-song');
+                const stream = item.getAttribute('data-stream');
+
+                stationTitle.innerText = name;
+                songTitle.innerText = song;
+                audio.src = stream;
+
+                if (isPlaying) {
+                    audio.play().catch(err => console.log("Ошибка воспроизведения"));
+                }
+            });
+        });
+
+        playBtn.addEventListener('click', () => {
+            initAudioEngine();
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            if (!audio.src) {
+                stationItems[0].click();
+            }
+
+            if (isPlaying) {
+                audio.pause();
+                playBtn.innerText = "PLAY";
+                playBtn.style.background = "var(--accent-orange)";
+                isPlaying = false;
+            } else {
+                audio.play().then(() => {
+                    playBtn.innerText = "PAUSE";
+                    playBtn.style.background = "#222";
+                    isPlaying = true;
+                }).catch(err => {
+                    alert("Поток загружается, подождите секунду и нажмите PLAY еще раз!");
+                });
+            }
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            audio.volume = e.target.value;
+            volVal.innerText = Math.round(e.target.value * 100) + "%";
+        });
+
+        bassSlider.addEventListener('input', (e) => {
+            bassVal.innerText = e.target.value + " дБ";
+            if (isAudioSetup && bassFilter) bassFilter.gain.value = e.target.value;
+        });
+
+        trebleSlider.addEventListener('input', (e) => {
+            trebleVal.innerText = e.target.value + " дБ";
+            if (isAudioSetup && trebleFilter) trebleFilter.gain.value = e.target.value;
+        });
+    </script>
+</body>
+</html>
