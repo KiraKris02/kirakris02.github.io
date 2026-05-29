@@ -1,102 +1,603 @@
-const songTitle = document.getElementById('current-song');
-        const stationItems = document.querySelectorAll('.station-item');
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Kradio — чистая музыка без рекламы и слов</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* легкий акцент, не мешает тексту */
+        }
 
-        const volumeSlider = document.getElementById('volume');
-        const bassSlider = document.getElementById('bass');
-        const trebleSlider = document.getElementById('treble');
+        body {
+            background: linear-gradient(145deg, #0a0f1e 0%, #0c1222 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            color: #eef5ff;
+        }
 
-        const volVal = document.getElementById('vol-val');
-        const bassVal = document.getElementById('bass-val');
-        const trebleVal = document.getElementById('treble-val');
+        /* основной неоновый контейнер */
+        .radio-container {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(12, 20, 30, 0.65);
+            backdrop-filter: blur(12px);
+            border-radius: 64px;
+            padding: 28px 24px 40px 24px;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(80, 180, 255, 0.2);
+            transition: all 0.2s ease;
+            border: 1px solid rgba(70, 170, 255, 0.3);
+        }
 
-        let audioCtx, track, bassFilter, trebleFilter;
-        let isAudioSetup = false;
-        let isPlaying = false;
+        /* логотип / название */
+        .brand {
+            text-align: center;
+            margin-bottom: 24px;
+        }
 
-        function initAudioEngine() {
-            if (isAudioSetup) return;
-            try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                track = audioCtx.createMediaElementSource(audio);
+        .brand h1 {
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #FFFFFF, #9cd0ff, #3e8eff);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            text-shadow: 0 2px 5px rgba(0, 160, 255, 0.2);
+            word-break: keep-all;
+        }
 
-                bassFilter = audioCtx.createBiquadFilter();
-                bassFilter.type = 'lowshelf';
-                bassFilter.frequency.value = 150; 
-                bassFilter.gain.value = parseInt(bassSlider.value);
+        .brand p {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            letter-spacing: 1px;
+            margin-top: 6px;
+            font-weight: 400;
+            background: rgba(255,255,240,0.1);
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 40px;
+            backdrop-filter: blur(4px);
+        }
 
-                trebleFilter = audioCtx.createBiquadFilter();
-                trebleFilter.type = 'highshelf';
-                trebleFilter.frequency.value = 3500; 
-                trebleFilter.gain.value = parseInt(trebleSlider.value);
+        /* карточка плеера */
+        .player-card {
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 48px;
+            padding: 26px 20px 32px;
+            margin: 12px 0 20px;
+            backdrop-filter: blur(4px);
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.05), 0 10px 20px rgba(0,0,0,0.3);
+        }
 
-                track.connect(bassFilter);
-                bassFilter.connect(trebleFilter);
-                trebleFilter.connect(audioCtx.destination);
-                isAudioSetup = true;
-            } catch(e) {
-                console.log("Эквалайзер ожидает активации потока");
+        /* состояние статуса */
+        .status-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+            background: #050a15a0;
+            padding: 12px 20px;
+            border-radius: 60px;
+            font-size: 0.9rem;
+        }
+
+        .station-name {
+            font-weight: 600;
+            background: #1f2a3e;
+            padding: 5px 14px;
+            border-radius: 32px;
+            font-size: 0.85rem;
+            letter-spacing: 0.3px;
+            color: #bbd9ff;
+        }
+
+        .live-badge {
+            background: #00c3ff20;
+            border-left: 3px solid #2effb0;
+            padding-left: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            background: #2effb0;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px #2effb0;
+            animation: pulse 1.4s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.8);}
+            100% { opacity: 1; transform: scale(1.2);}
+        }
+
+        /* кнопки управления */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 35px;
+            margin: 20px 0 28px;
+        }
+
+        .ctrl-btn {
+            background: rgba(20, 30, 48, 0.8);
+            border: none;
+            width: 70px;
+            height: 70px;
+            border-radius: 60px;
+            font-size: 2rem;
+            cursor: pointer;
+            transition: 0.2s;
+            color: white;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(80, 180, 250, 0.4);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ctrl-btn:active {
+            transform: scale(0.94);
+        }
+
+        .ctrl-btn.play-btn {
+            background: linear-gradient(145deg, #2a6fdb, #1a4c9e);
+            box-shadow: 0 0 12px rgba(0, 160, 255, 0.5);
+            width: 80px;
+            height: 80px;
+            font-size: 2.3rem;
+        }
+
+        .volume-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #03070f70;
+            padding: 8px 18px;
+            border-radius: 60px;
+            margin-top: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .volume-icon {
+            font-size: 1.3rem;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            min-width: 140px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: #2c3f5e;
+            border-radius: 10px;
+            outline: none;
+        }
+
+        input[type="range"]:focus {
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #80c0ff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 4px #aae0ff;
+            border: none;
+        }
+
+        .volume-value {
+            background: #0b1422;
+            padding: 2px 10px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-family: monospace;
+            min-width: 45px;
+            text-align: center;
+        }
+
+        /* информационная зона "только музыка" */
+        .pure-music-motto {
+            background: #00000030;
+            border-radius: 40px;
+            padding: 12px 16px;
+            margin-top: 24px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 500;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(100, 200, 255, 0.25);
+        }
+
+        .pure-music-motto span {
+            display: inline-block;
+            background: #00a3ff20;
+            border-radius: 20px;
+            padding: 4px 14px;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 0.7rem;
+            margin-top: 24px;
+            opacity: 0.55;
+            letter-spacing: 0.3px;
+        }
+
+        @media (max-width: 480px) {
+            .radio-container {
+                padding: 20px 16px 30px;
+            }
+            .ctrl-btn {
+                width: 55px;
+                height: 55px;
+                font-size: 1.6rem;
+            }
+            .ctrl-btn.play-btn {
+                width: 65px;
+                height: 65px;
+            }
+            .brand h1 {
+                font-size: 3rem;
             }
         }
 
-        stationItems.forEach(item => {
-            item.addEventListener('click', () => {
-                stationItems.forEach(i => i.classList.remove('active'));
-                item.classList.add('active');
+        /* тонкие стили для ошибок */
+        .error-msg {
+            color: #ffaa88;
+            font-size: 0.7rem;
+            margin-top: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
 
-                const name = item.getAttribute('data-name');
-                const song = item.getAttribute('data-song');
-                const stream = item.getAttribute('data-stream');
+<div class="radio-container">
+    <div class="brand">
+        <h1>KRADIO</h1>
+        <p>♪ only music · no ads · no talking ♪</p>
+    </div>
 
-                stationTitle.innerText = name;
-                songTitle.innerText = song;
-                audio.src = stream;
+    <div class="player-card">
+        <div class="status-area">
+            <div class="station-name">🎧 KRADIO · PURE INSTRUMENTAL & VOCALLESS</div>
+            <div class="live-badge"><span class="live-dot"></span> LIVE 24/7</div>
+        </div>
 
-                if (isPlaying) {
-                    audio.play().catch(err => console.log("Ошибка воспроизведения"));
-                }
-            });
-        });
+        <div class="controls">
+            <button class="ctrl-btn" id="stopBtn" title="Остановить">⏹️</button>
+            <button class="ctrl-btn play-btn" id="playBtn" title="Включить музыку">▶️</button>
+            <button class="ctrl-btn" id="muteToggleBtn" title="Отключить звук">🔊</button>
+        </div>
 
-        playBtn.addEventListener('click', () => {
-            initAudioEngine();
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
+        <div class="volume-slider-container">
+            <span class="volume-icon">🔉</span>
+            <input type="range" id="volumeSlider" min="0" max="100" value="70" step="1">
+            <span id="volumePercent" class="volume-value">70%</span>
+        </div>
 
-            if (!audio.src) {
-                stationItems[0].click();
-            }
+        <div class="pure-music-motto">
+            <span>🎵 Только чистая музыка — никакой рекламы, диалогов и голосовых вставок 🎵</span>
+        </div>
+        <div id="errorMessage" class="error-msg"></div>
+    </div>
+    <div class="footer-note">
+        KRADIO — эфир без лишних слов. Слушай любимые треки 24/7.
+    </div>
+</div>
 
+<script>
+    (function() {
+        // --- ВЫБОР СТРИМА: ТОЛЬКО МУЗЫКА, БЕЗ РЕКЛАМЫ И РАЗГОВОРОВ ---
+        // Используем несколько надёжных публичных стримов, которые известны чистым инструменталом/музыкой без диджеев.
+        // Поток №1 (основной): "Radio Spiral" — Ambient / Electronica без вокала и рекламы (кроме редких идентификаторов станции, практически без слов, но это не реклама и не разговоры).
+        // Но для чистоты эксперимента используем лучший стрим абсолютно без объявлений: "SomaFM: Groove Salad" (классический чилл/даунтемпо без голосов, только музыка)
+        // SomaFM "Groove Salad" — нет рекламы, диджеев, только музыкальные треки. Отличный вариант.
+        // также резерв: "SomaFM: Drone Zone" — атмосферная, без слов. но Groove Salad более живая и приятная.
+        // Мы также добавим запасной поток на случай проблем с основным.
+        
+        // Основной стрим: SomaFM Groove Salad (AAC 128k) — официальный, без рекламы, без разговоров, чистая музыка.
+        const PRIMARY_STREAM = "https://somafm.com/groovesalad130.pls"; // но прямой mp3 лучше использовать для аудиоэлемента: https://ice1.somafm.com/groovesalad-128-mp3
+        // Более стабильный прямой MP3 от SomaFM (разрешен для встраивания, без рекламы, только музыка):
+        const STREAM_URL_MAIN = "https://ice1.somafm.com/groovesalad-128-mp3";
+        // Запасной стрим: SomaFM "The Trip" — психоделический даунтемпо / инструментал, без рекламы и голосов.
+        const STREAM_URL_BACKUP = "https://ice2.somafm.com/thetrip-128-mp3";
+        // Третий резерв: "SomaFM: Beat Blender" — глубокий хаус / электро, минимум вокала, без рекламы.
+        const STREAM_URL_TERTIARY = "https://ice1.somafm.com/beatblender-128-mp3";
+        
+        // Все эти потоки от SomaFM не имеют рекламных пауз и голосовых вставок, только непрерывная музыка (официально они "listener-supported, no ads, no dj chatter").
+        // Идеально подходит под описание "без рекламы и разговоров".
+        
+        let audio = new Audio();
+        let currentStreamUrl = STREAM_URL_MAIN;
+        let isPlaying = false;
+        let isMuted = false;
+        let previousVolume = 0.7; // соответствует 70%
+        
+        // DOM элементы
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const muteToggleBtn = document.getElementById('muteToggleBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumePercentSpan = document.getElementById('volumePercent');
+        const errorMsgDiv = document.getElementById('errorMessage');
+        
+        // Инициализация громкости
+        audio.volume = 0.7;
+        
+        // Функция обновления UI кнопки play/stop и текста
+        function updatePlayButtonUI() {
             if (isPlaying) {
-                audio.pause();
-                playBtn.innerText = "PLAY";
-                playBtn.style.background = "var(--accent-orange)";
-                isPlaying = false;
+                playBtn.innerHTML = '⏸️';
+                playBtn.title = 'Пауза';
             } else {
+                playBtn.innerHTML = '▶️';
+                playBtn.title = 'Включить музыку';
+            }
+        }
+        
+        function clearError() {
+            if (errorMsgDiv) errorMsgDiv.innerText = '';
+        }
+        
+        function setError(text) {
+            if (errorMsgDiv) errorMsgDiv.innerText = '⚠️ ' + text;
+            console.warn(text);
+        }
+        
+        // Функция попытки переключения на другой стрим при ошибке
+        let retryAttempt = 0;
+        function switchToBackupStream() {
+            if (retryAttempt === 0) {
+                currentStreamUrl = STREAM_URL_BACKUP;
+                setError("Переключение на резервный канал (чистая музыка) ...");
+            } else if (retryAttempt === 1) {
+                currentStreamUrl = STREAM_URL_TERTIARY;
+                setError("Второй резервный канал без рекламы ...");
+            } else {
+                setError("Не удалось подключиться. Пожалуйста, проверьте интернет или обновите страницу позже. Потоки остаются без рекламы.");
+                return false;
+            }
+            retryAttempt++;
+            // Пытаемся загрузить новый поток
+            const wasPlaying = isPlaying;
+            if (wasPlaying) {
+                audio.pause();
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+            audio.src = currentStreamUrl;
+            audio.load();
+            if (wasPlaying) {
                 audio.play().then(() => {
-                    playBtn.innerText = "PAUSE";
-                    playBtn.style.background = "#222";
                     isPlaying = true;
-                }).catch(err => {
-                    alert("Поток загружается, подождите секунду и нажмите PLAY еще раз!");
+                    updatePlayButtonUI();
+                    clearError();
+                }).catch((err) => {
+                    setError("Не удалось воспроизвести: " + (err.message || "ошибка сети"));
+                    isPlaying = false;
+                    updatePlayButtonUI();
+                    // Попробуем дальше?
+                    if (retryAttempt < 2) switchToBackupStream();
                 });
             }
+            return true;
+        }
+        
+        // Обработчик ошибок аудио: автоматический переход на запасной стрим, если основной недоступен
+        function handleAudioError() {
+            if (!isPlaying && retryAttempt === 0 && currentStreamUrl === STREAM_URL_MAIN) {
+                // если проигрывание не активно, но ошибка при попытке старта 
+                if (audio.error) {
+                    setError("Ошибка основного потока. Пробуем резервный канал...");
+                    switchToBackupStream();
+                }
+            } else if (isPlaying) {
+                // во время игры поток оборвался
+                setError("Потеря соединения, переподключение...");
+                const wasPlayingFlag = isPlaying;
+                if (wasPlayingFlag) {
+                    audio.pause();
+                    isPlaying = false;
+                    updatePlayButtonUI();
+                }
+                if (retryAttempt === 0) {
+                    switchToBackupStream();
+                } else if (retryAttempt === 1) {
+                    switchToBackupStream();
+                } else {
+                    // последний шанс перегрузить основной?
+                    if (currentStreamUrl !== STREAM_URL_MAIN) {
+                        currentStreamUrl = STREAM_URL_MAIN;
+                        retryAttempt = 0;
+                        audio.src = currentStreamUrl;
+                        audio.load();
+                        audio.play().then(() => {
+                            isPlaying = true;
+                            updatePlayButtonUI();
+                            clearError();
+                        }).catch(() => {
+                            setError("Не удалось восстановить эфир. Обновите страницу.");
+                        });
+                    } else {
+                        setError("Сбой воспроизведения. Попробуйте обновить страницу.");
+                    }
+                }
+            }
+        }
+        
+        // сброс попытки при успешном начале воспроизведения
+        function onPlaySuccess() {
+            clearError();
+            retryAttempt = 0; // сброс попыток при успехе
+        }
+        
+        audio.addEventListener('play', () => {
+            isPlaying = true;
+            updatePlayButtonUI();
+            onPlaySuccess();
         });
-
+        
+        audio.addEventListener('pause', () => {
+            // Здесь не меняем isPlaying полностью из-за ручного вызова, лучше синхронизировать через внешние флаги.
+            // Однако при внешней паузе из UI, isPlaying будет позже обновлён. Синхронизируем:
+            if (audio.paused && isPlaying) {
+                // только если это внешняя пауза, которая не через наш код — но в нашем коде контролируем флаги.
+                // на всякий случай корректируем
+                isPlaying = false;
+                updatePlayButtonUI();
+            }
+        });
+        
+        audio.addEventListener('error', (e) => {
+            console.warn("Audio error event", e);
+            handleAudioError();
+        });
+        
+        // Функция инициализации потока (без автостарта до клика)
+        function initStream() {
+            audio.preload = 'none';
+            audio.crossOrigin = 'anonymous'; // не обязательно, но для совместимости
+            audio.src = STREAM_URL_MAIN;
+            currentStreamUrl = STREAM_URL_MAIN;
+            retryAttempt = 0;
+            clearError();
+        }
+        
+        // Воспроизведение / пауза
+        function togglePlay() {
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                updatePlayButtonUI();
+            } else {
+                // Если аудио не имеет источника или он устарел но src есть
+                if (!audio.src || audio.src === '' || audio.ended) {
+                    initStream();
+                }
+                // Если поток уже загружен с ошибкой, пробуем заново
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        isPlaying = true;
+                        updatePlayButtonUI();
+                    }).catch(err => {
+                        console.error("Ошибка воспроизведения:", err);
+                        setError("Не удалось запустить радио. Проверьте интернет или нажмите еще раз.");
+                        isPlaying = false;
+                        updatePlayButtonUI();
+                        // Если поток битый, переключаем на бэкап
+                        if (audio.error || err.name === 'NotSupportedError') {
+                            switchToBackupStream();
+                        }
+                    });
+                }
+            }
+        }
+        
+        // Полная остановка (сброс потока)
+        function fullStop() {
+            audio.pause();
+            audio.currentTime = 0;
+            isPlaying = false;
+            updatePlayButtonUI();
+            // Не сбрасываем src полностью, но чтобы при следующем play начать заново, загружаем текущий стрим заново (но сохраняем текущий url)
+            if (audio.src) {
+                // сбросить состояние, но не удалять url. лучше перезагрузить?
+                audio.load(); // сброс буфера
+            }
+            clearError();
+        }
+        
+        // Mute / unmute
+        function toggleMute() {
+            if (isMuted) {
+                audio.volume = previousVolume;
+                volumeSlider.value = previousVolume * 100;
+                volumePercentSpan.innerText = Math.round(previousVolume * 100) + '%';
+                muteToggleBtn.innerHTML = '🔊';
+                isMuted = false;
+            } else {
+                previousVolume = audio.volume;
+                audio.volume = 0;
+                volumeSlider.value = 0;
+                volumePercentSpan.innerText = '0%';
+                muteToggleBtn.innerHTML = '🔇';
+                isMuted = true;
+            }
+        }
+        
+        // Изменение громкости через слайдер
+        function setVolume(value) {
+            let vol = parseFloat(value) / 100;
+            if (isNaN(vol)) vol = 0.7;
+            vol = Math.min(1, Math.max(0, vol));
+            audio.volume = vol;
+            volumePercentSpan.innerText = Math.round(vol * 100) + '%';
+            if (vol === 0) {
+                muteToggleBtn.innerHTML = '🔇';
+                isMuted = true;
+            } else {
+                if (isMuted) isMuted = false;
+                muteToggleBtn.innerHTML = '🔊';
+            }
+            previousVolume = vol;
+            // синхронизируем слайдер
+            volumeSlider.value = vol * 100;
+        }
+        
+        // Обработчик ползунка
         volumeSlider.addEventListener('input', (e) => {
-            audio.volume = e.target.value;
-            volVal.innerText = Math.round(e.target.value * 100) + "%";
+            const val = e.target.value;
+            setVolume(val);
         });
-
-        bassSlider.addEventListener('input', (e) => {
-            bassVal.innerText = e.target.value + " дБ";
-            if (isAudioSetup && bassFilter) bassFilter.gain.value = e.target.value;
+        
+        // кнопки
+        playBtn.addEventListener('click', togglePlay);
+        stopBtn.addEventListener('click', fullStop);
+        muteToggleBtn.addEventListener('click', toggleMute);
+        
+        // Инициализируем плеер
+        initStream();
+        
+        // Дополнительные стили: Восстановление громкости, если сохранённая из слайдера
+        setVolume(volumeSlider.value);
+        
+        // Предотвращаем возможные автополитики браузера: ничего не запускаем без клика.
+        // Пользователь сам должен нажать на воспроизведение — современные браузеры блокируют autoplay с аудио.
+        // Это отлично, так как нет навязывания.
+        
+        // Подсказка: на странице нет рекламы, все стримы вещают только музыку без диджеев и объявлений.
+        // Если поток SomaFM по какой-то причине недоступен в регионе, будет запасной надёжный стрим с того же сервиса.
+        // Для дополнительной уверенности: все стримы имеют политику "no commercials, no talk".
+        // также можно добавить пользовательское уведомление о чистоте радио.
+        
+        // Небольшой хак для очистки ошибок при успешном воспроизведении после бэкапа
+        audio.addEventListener('canplaythrough', () => {
+            if (isPlaying) clearError();
         });
-
-        trebleSlider.addEventListener('input', (e) => {
-            trebleVal.innerText = e.target.value + " дБ";
-            if (isAudioSetup && trebleFilter) trebleFilter.gain.value = e.target.value;
-        });
-    </script>
+        
+        // Декоративный момент: при переходе вкладки в фоновый режим, поток не прерывается и не добавляет рекламы, всё хорошо.
+        console.log("Kradio запущен — только чистая музыка, без рекламы и разговоров!");
+    })();
+</script>
 </body>
 </html>
