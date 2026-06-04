@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ПогодаК — Карта осадков и мониторинг</title>
+    <title>ПогодаК — Карта осадков</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -40,7 +40,6 @@
             color: #38bdf8;
             text-transform: uppercase;
             letter-spacing: 2px;
-            text-shadow: 0 2px 10px rgba(56, 189, 248, 0.2);
         }
 
         header p {
@@ -82,7 +81,7 @@
             top: 20px;
             right: 20px;
             font-size: 0.8rem;
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(15, 23, 42, 0.8);
             padding: 6px 12px;
             border-radius: 20px;
             border: 1px solid #334155;
@@ -105,13 +104,14 @@
             100% { transform: scale(0.8); opacity: 0.4; }
         }
 
-        /* Контейнер для виджета карты */
+        /* Контейнер карты */
         .map-widget {
             background: #1e293b;
             border-radius: 16px;
             padding: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             border: 1px solid #334155;
+            position: relative;
         }
 
         .map-widget h3 {
@@ -127,6 +127,29 @@
             z-index: 1;
         }
 
+        /* Индикатор/Шкала осадков поверх карты */
+        .radar-legend {
+            position: absolute;
+            bottom: 35px;
+            left: 30px;
+            background: rgba(15, 23, 42, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            z-index: 1000;
+            font-size: 0.75rem;
+            color: #cbd5e1;
+        }
+
+        .legend-colors {
+            display: flex;
+            height: 8px;
+            width: 150px;
+            margin-top: 5px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #7dd3fc, #3b82f6, #1d4ed8, #22c55e, #eab308, #ef4444);
+        }
+
         .cookie-badge {
             font-size: 0.8rem;
             color: #64748b;
@@ -135,15 +158,9 @@
         }
 
         @media (max-width: 640px) {
-            .weather-widget {
-                padding-top: 50px;
-            }
-            .update-status {
-                top: 10px;
-                right: 50%;
-                transform: translateX(50%);
-                width: max-content;
-            }
+            .weather-widget { padding-top: 50px; }
+            .update-status { top: 10px; right: 50%; transform: translateX(50%); width: max-content; }
+            .radar-legend { display: none; }
         }
     </style>
 </head>
@@ -152,18 +169,18 @@
 <div class="container">
     <header>
         <h1>ПогодаК</h1>
-        <p>Радар осадков и метеоданные в реальном времени</p>
+        <p>Русская интерактивная карта и автообновление</p>
     </header>
 
     <div class="weather-widget">
         <div class="update-status">
             <div class="pulse-dot"></div>
-            <span>Автообновление через: <b id="timer">5</b>с</span>
+            <span>Обновление через: <b id="timer">5</b>с</span>
         </div>
         
         <div class="weather-info">
-            <h2 id="locationName">Синхронизация GPS...</h2>
-            <div class="weather-meta" id="weatherDesc">Поиск спутников...</div>
+            <h2 id="locationName">Определение позиции...</h2>
+            <div class="weather-meta" id="weatherDesc">Синхронизация...</div>
             <div class="temp-display" id="tempText">--°C</div>
             <div class="weather-meta" style="color: #94a3b8;">
                 Влажность: <span id="humidity" style="color: #fff;">--</span>% | 
@@ -173,16 +190,26 @@
     </div>
 
     <div class="map-widget">
-        <h3>Карта осадков вокруг вас</h3>
+        <h3>Карта осадков (Радар)</h3>
         <div id="map"></div>
-        <div class="cookie-badge">⚙️ Текущая геолокация зафиксирована в Cookies для ускорения будущих сессий.</div>
+        
+        <div class="radar-legend">
+            <span>Радар осадков: активен</span>
+            <div class="legend-colors"></div>
+            <div style="display: flex; justify-content: space-between; margin-top: 2px; color: #94a3b8;">
+                <span>Слабый</span>
+                <span>Ливень</span>
+            </div>
+        </div>
+
+        <div class="cookie-badge">⚙️ Координаты сохраняются в Cookies локально в вашем браузере.</div>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-    // --- COOKIES ENGINE ---
+    // --- COOKIES ---
     function setCookie(name, value, days) {
         let expires = "";
         if (days) {
@@ -203,154 +230,153 @@
         return null;
     }
 
-    // --- НАСТРОЙКИ СИСТЕМЫ ---
+    // --- ПЕРЕМЕННЫЕ ---
     let map;
     let userMarker;
     let radarLayer;
     
-    // Берем координаты из куки, если их нет — ставим дефолтные Химки
-    let currentLat = parseFloat(getCookie("pk_lat")) || 55.8894;
-    let currentLon = parseFloat(getCookie("pk_lon")) || 37.4449;
+    // Проверка кук на NaN (защита от сбоев)
+    let cookieLat = getCookie("pk_lat");
+    let cookieLon = getCookie("pk_lon");
+    let currentLat = (cookieLat && !isNaN(parseFloat(cookieLat))) ? parseFloat(cookieLat) : 55.8894;
+    let currentLon = (cookieLon && !isNaN(parseFloat(cookieLon))) ? parseFloat(cookieLon) : 37.4449;
+    
     let refreshTimer = 5;
 
-    // --- ИНИЦИАЛИЗАЦИЯ ПРИ ЗАПУСКЕ ---
+    // --- СТАРТ ПРИ ЗАГРУЗКЕ ---
     window.onload = function() {
-        buildInteractiveMap();
-        syncUserGeolocation();
+        buildMap();
+        syncGeolocation();
         
-        // Цикл жесткого автообновления (каждые 5 секунд)
+        // Жесткий таймер обновлений на 5 секунд
         setInterval(() => {
             refreshTimer--;
             document.getElementById('timer').innerText = refreshTimer;
             
             if (refreshTimer <= 0) {
-                fetchFreshWeather(currentLat, currentLon);
-                fetchLiveRadarLayer(); // Перепроверяем новые тучи на радаре
+                fetchWeather(currentLat, currentLon);
+                fetchRadarData(); 
                 refreshTimer = 5;
             }
         }, 1000);
     };
 
-    // --- СБОРКА КАРТЫ СЛОЕВ ---
-    function buildInteractiveMap() {
-        // Создаем холст карты Leaflet
-        map = L.map('map', { zoomControl: true }).setView([currentLat, currentLon], 10);
+    // --- СБОРКА РУССКОЙ КАРТЫ ---
+    function buildMap() {
+        // Создаем карту. Отключаем лишнее, чтобы не тормозило
+        map = L.map('map', { minZoom: 3, maxZoom: 18 }).setView([currentLat, currentLon], 11);
 
-        // Навешиваем стильную темную карту-подложку
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        // Используем стандартный OSM слой — он полностью на русском языке для русскоязычных регионов
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
         }).addTo(map);
 
-        // Рисуем точку локации
-        renderUserLocationDot(currentLat, currentLon);
-
-        // Накладываем радар осадков
-        fetchLiveRadarLayer();
+        // Отрисовка синего маркера пользователя
+        drawUserDot(currentLat, currentLon);
+        fetchRadarData();
     }
 
-    // --- ОПРЕДЕЛЕНИЕ ТЕКУЩИХ КООРДИНАТ ПОЛЬЗОВАТЕЛЯ ---
-    function syncUserGeolocation() {
+    // --- ГЕОЛОКАЦИЯ С ТАЙМАУТОМ ---
+    function syncGeolocation() {
         if (navigator.geolocation) {
+            // Если за 3 секунды браузер не дал ответ (например файл открыт локально), срабатывает отмена
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     currentLat = position.coords.latitude;
                     currentLon = position.coords.longitude;
 
-                    // Пакуем координаты в куки на месяц вперед
                     setCookie("pk_lat", currentLat, 30);
                     setCookie("pk_lon", currentLon, 30);
 
-                    // Центрируем карту на пользователе и обновляем синий маркер
-                    map.setView([currentLat, currentLon], 11);
-                    renderUserLocationDot(currentLat, currentLon);
-                    
-                    // Обновляем метеоданные под новые координаты
-                    fetchFreshWeather(currentLat, currentLon);
+                    map.setView([currentLat, currentLon], 12);
+                    drawUserDot(currentLat, currentLon);
+                    fetchWeather(currentLat, currentLon);
                 },
                 (error) => {
-                    console.warn("Доступ к GPS заблокирован. Работаем по кукам/дефолту.");
-                    fetchFreshWeather(currentLat, currentLon);
-                }
+                    console.log("GPS недоступен, загружаем стандартную карту.");
+                    loadDefault();
+                },
+                { timeout: 3000 } 
             );
         } else {
-            fetchFreshWeather(currentLat, currentLon);
+            loadDefault();
         }
     }
 
-    // --- ОТРИСОВКА СИНЕЙ ТОЧКИ НАВИГАЦИИ ---
-    function renderUserLocationDot(lat, lon) {
+    function loadDefault() {
+        map.setView([currentLat, currentLon], 11);
+        drawUserDot(currentLat, currentLon);
+        fetchWeather(currentLat, currentLon);
+    }
+
+    // --- СОЗДАНИЕ СИНЕЙ ТОЧКИ (КАК В НАВИГАТОРЕ) ---
+    function drawUserDot(lat, lon) {
         if (userMarker) {
             userMarker.setLatLng([lat, lon]);
         } else {
-            // Создаем красивый круглый маркер геолокации, как в навигаторах
+            // Светящийся синий маркер локации пользователя
             userMarker = L.circleMarker([lat, lon], {
-                radius: 8,
+                radius: 9,
                 color: '#ffffff',
-                weight: 2,
+                weight: 3,
                 fillColor: '#0ea5e9',
                 fillOpacity: 1
             }).addTo(map);
             
-            userMarker.bindPopup("<b>Вы находитесь здесь</b>").openPopup();
+            userMarker.bindPopup("<b>Вы здесь</b>").openPopup();
         }
     }
 
-    // --- ПОЛУЧЕНИЕ СВЕЖЕГО РАДАРА ОСАДКОВ ---
-    function fetchLiveRadarLayer() {
-        // Запрашиваем у RainViewer актуальный таймштамп появления облачности
+    // --- ЗАГРУЗКА СЛОЯ ДОЖДЯ/СНЕГА ---
+    function fetchRadarData() {
         fetch('https://api.rainviewer.com/public/weather-maps.json')
             .then(res => res.json())
             .then(data => {
                 if (data && data.radar && data.radar.past) {
-                    const latestTimestamp = data.radar.past[data.radar.past.length - 1].time;
+                    const lastTs = data.radar.past[data.radar.past.length - 1].time;
                     
-                    // Если старый слой осадков существовал — удаляем его, чтобы не наслаивать
                     if (radarLayer) map.removeLayer(radarLayer);
 
-                    // Генерируем новый слой дождя/снега с прозрачностью 60%
-                    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${latestTimestamp}/256/{z}/{x}/{y}/2/1_1.png`, {
-                        opacity: 0.6
+                    // Накладываем обновляемую сетку осадков
+                    radarLayer = L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${lastTs}/256/{z}/{x}/{y}/2/1_1.png`, {
+                        opacity: 0.55
                     }).addTo(map);
                 }
             })
-            .catch(err => console.error("Ошибка обновления радара осадков:", err));
+            .catch(err => console.error("Ошибка радара осадков:", err));
     }
 
-    // --- ЗАПРОС К ПОГОДНОМУ API (БЕЗ КЛЮЧЕЙ И ЛИМИТОВ) ---
-    function fetchFreshWeather(lat, lon) {
+    // --- ЗАПРОС ТЕКУЩЕЙ ПОГОДЫ ---
+    function fetchWeather(lat, lon) {
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&wind_speed_unit=ms&timezone=auto`;
 
         fetch(url)
-            .then(res => {
-                if (!res.ok) throw new Error("Сбой сети");
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
                 const current = data.current;
                 
-                // Выводим данные в интерфейс
                 document.getElementById('locationName').innerText = `Координаты: ${lat.toFixed(3)}°, ${lon.toFixed(3)}°`;
                 document.getElementById('tempText').innerText = Math.round(current.temperature_2m) + "°C";
                 document.getElementById('humidity').innerText = current.relative_humidity_2m;
                 document.getElementById('wind').innerText = current.wind_speed_10m.toFixed(1);
-                document.getElementById('weatherDesc').innerText = translateWmoCode(current.weather_code);
+                document.getElementById('weatherDesc').innerText = parseWmoCode(current.weather_code);
             })
             .catch(err => {
-                console.error("Ошибка API погоды:", err);
-                document.getElementById('weatherDesc').innerText = "Ошибка обновления данных.";
+                console.error("Ошибка погоды:", err);
+                document.getElementById('weatherDesc').innerText = "Ошибка обновления данных сети.";
             });
     }
 
-    // Парсер погодных условий (WMO Code Международной метеорологии)
-    function translateWmoCode(code) {
-        if (code === 0) return "Чистое небо ☀️";
+    // Перевод кодов погоды
+    function parseWmoCode(code) {
+        if (code === 0) return "Ясное небо ☀️";
         if (code >= 1 && code <= 3) return "Переменная облачность ⛅";
-        if (code === 45 || code === 48) return "Плотный туман 🌫️";
-        if (code >= 51 && code <= 55) return "Моросящие осадки 🌧️";
-        if (code >= 61 && code <= 65) return "Идет сильный дождь 🌧️";
-        if (code >= 71 && code <= 75) return "Идет снегопад ❄️";
-        if (code >= 80 && code <= 82) return "Ливневые дожди ⛈️";
-        return "Пасмурно ☁️";
+        if (code === 45 || code === 48) return "Туман 🌫️";
+        if (code >= 51 && code <= 55) return "Морось 🌧️";
+        if (code >= 61 && code <= 65) return "Дождь 🌧️";
+        if (code >= 71 && code <= 75) return "Снег ❄️";
+        if (code >= 80 && code <= 82) return "Ливень ⛈️";
+        return "Облачно ☁️";
     }
 </script>
 
